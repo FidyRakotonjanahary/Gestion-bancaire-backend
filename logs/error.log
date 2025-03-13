@@ -1,0 +1,11 @@
+[ERROR] 2025-03-13T19:59:29.146Z - Erreur lors de la mise à jour des permissions: - error: une valeur NULL viole la contrainte NOT NULL de la colonne « permission_name » dans la relation « user_permissions »
+    at C:\Users\Fidy\Desktop\Gestion bancaire\bank-app-backend\node_modules\pg\lib\client.js:535:17
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at Function.updateUserPermissions (C:\Users\Fidy\Desktop\Gestion bancaire\bank-app-backend\models\Permission.js:132:32)
+    at Object.<anonymous>.exports.updateUserPermissions (C:\Users\Fidy\Desktop\Gestion bancaire\bank-app-backend\controllers\permissionController.js:57:5)
+[ERROR] 2025-03-13T20:14:29.423Z - Erreur lors de l'enregistrement: - error: une instruction insert ou update sur la table « user_permissions » viole la contrainte de clé
+étrangère « user_permissions_user_id_fkey »
+    at C:\Users\Fidy\Desktop\Gestion bancaire\bank-app-backend\node_modules\pg-pool\index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Promise.all (index 1)
+    at Object.<anonymous>.exports.register (C:\Users\Fidy\Desktop\Gestion bancaire\bank-app-backend\controllers\authController.js:43:5)
