@@ -105,6 +105,18 @@ class SocketService {
     });
   }
   
+  updateAuditCounters() {
+    if (!this.io) return;
+    
+    // Récupérer et émettre les compteurs mis à jour
+    Audit.getCounters()
+      .then(counters => {
+        this.io.emit('audit_counters_updated', counters);
+      })
+      .catch(error => {
+        logger.error('Erreur lors de la mise à jour des compteurs d\'audit:', error);
+      });
+  }
   /**
    * Renvoie l'instance IO
    * @returns {Object} - Instance Socket.IO

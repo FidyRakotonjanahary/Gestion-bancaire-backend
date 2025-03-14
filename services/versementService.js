@@ -1,21 +1,24 @@
-const db = require('../utils/db');
 const logger = require('../utils/loggers');
-const clientService = require('./clientService');
-const socketService = require('./socketService');
+const Versement = require('../models/Versement');
 
 /**
  * Récupère tous les versements
  */
 const getAllVersements = async () => {
   try {
-    const result = await db.query(
-      `SELECT v.id, v.numero_cheque, v.amount as montant, v.created_at as date_creation,
-              c.account_number as numero_compte, c.name as nom_client, v.status
-       FROM versements v
-       JOIN clients c ON v.client_id = c.id
-       ORDER BY v.created_at DESC`
-    );
-    return result.rows;
+    const versements = await Versement.getAll();
+    // Formater les données pour correspondre à l'attente du service
+    return versements.map(v => ({
+      id: v.id,
+      numero_cheque: v.numero_cheque,
+      amount: v.amount,
+      date_creation: v.created_at,
+      client_id: v.client_id,
+      numero_compte: v.account_number,
+      nom_client: v.name,
+      status: v.status,
+      description: v.description
+    }));
   } catch (error) {
     logger.error('Erreur lors de la récupération des versements:', error);
     throw error;
@@ -27,16 +30,21 @@ const getAllVersements = async () => {
  */
 const getVersementById = async (id) => {
   try {
-    const result = await db.query(
-      `SELECT v.id, v.numero_cheque, v.amount as montant, v.created_at as date_creation,
-              c.id as client_id, c.account_number as numero_compte, c.name as nom_client, v.status,
-              v.description
-       FROM versements v
-       JOIN clients c ON v.client_id = c.id
-       WHERE v.id = $1`,
-      [id]
-    );
-    return result.rows[0];
+    const versement = await Versement.getById(id);
+    if (!versement) return null;
+    
+    // Formater les données pour correspondre à l'attente du service
+    return {
+      id: versement.id,
+      numero_cheque: versement.numero_cheque,
+      amount: versement.amount,
+      date_creation: versement.created_at,
+      client_id: versement.client_id,
+      numero_compte: versement.account_number,
+      nom_client: versement.name,
+      status: versement.status,
+      description: versement.description
+    };
   } catch (error) {
     logger.error(`Erreur lors de la récupération du versement ${id}:`, error);
     throw error;
@@ -47,35 +55,35 @@ const getVersementById = async (id) => {
  * Crée un nouveau versement
  */
 const createVersement = async (versementData, userId) => {
-  const { numero_cheque, montant, client_id, description } = versementData;
+  const { client_id, numero_cheque, amount, description } = versementData;
   
   try {
-    const client = await clientService.getClientById(client_id);
-    if (!client) {
-      throw new Error('Client non trouvé');
-    }
+    // Adapter les données pour le modèle Versement
+    const versementModelData = {
+      clientId: client_id,
+      numero_cheque: numero_cheque,
+      amount: amount,
+      description: description,
+      status: 'en_attente',
+      createdBy: userId
+    };
     
-    // Démarrer une transaction
-    await db.query('BEGIN');
+    // Créer le versement en utilisant le modèle
+    const newVersement = await Versement.create(versementModelData);
     
-    // Insérer le versement
-    const result = await db.query(
-      `INSERT INTO versements
-        (numero_cheque, amount, client_id, created_by, description, status)
-       VALUES ($1, $2, $3, $4, $5, 'en_attente')
-       RETURNING *`,
-      [numero_cheque, montant, client_id, userId, description]
-    );
-    
-    // Valider la transaction
-    await db.query('COMMIT');
-    
-    // Émettre un événement pour les mises à jour en temps réel
-    socketService.emitAuditUpdate('insert');
-    
-    return result.rows[0];
+    // Retourner les données formatées
+    return {
+      id: newVersement.id,
+      numero_cheque: newVersement.numero_cheque,
+      amount: newVersement.amount,
+      date_creation: newVersement.created_at,
+      client_id: newVersement.client_id,
+      numero_compte: newVersement.account_number,
+      nom_client: newVersement.name,
+      status: newVersement.status,
+      description: newVersement.description
+    };
   } catch (error) {
-    await db.query('ROLLBACK');
     logger.error('Erreur lors de la création du versement:', error);
     throw error;
   }
@@ -85,36 +93,40 @@ const createVersement = async (versementData, userId) => {
  * Met à jour un versement
  */
 const updateVersement = async (id, versementData, userId) => {
-  const { numero_cheque, montant, description, status } = versementData;
+  const { numero_cheque, amount, description, status } = versementData;
   
   try {
-    // Récupérer d'abord le versement existant
-    const existingVersement = await getVersementById(id);
-    if (!existingVersement) {
-      throw new Error('Versement non trouvé');
-    }
+    // Adapter les données pour le modèle Versement
+    const versementModelData = {
+      numero_cheque: numero_cheque,
+      amount: amount,
+      description: description,
+      status: status
+    };
     
-    // Démarrer une transaction
-    await db.query('BEGIN');
+    // Nettoyer les données null ou undefined
+    Object.keys(versementModelData).forEach(key => {
+      if (versementModelData[key] === undefined || versementModelData[key] === null) {
+        delete versementModelData[key];
+      }
+    });
     
-    // Mettre à jour le versement
-    const result = await db.query(
-      `UPDATE versements
-       SET numero_cheque = $1, amount = $2, description = $3, status = $4, updated_at = NOW()
-       WHERE id = $5
-       RETURNING *`,
-      [numero_cheque, montant, description, status || existingVersement.status, id]
-    );
+    // Mettre à jour le versement en utilisant le modèle
+    const updatedVersement = await Versement.update(id, versementModelData, userId);
     
-    // Valider la transaction
-    await db.query('COMMIT');
-    
-    // Émettre un événement pour les mises à jour en temps réel
-    socketService.emitAuditUpdate('update');
-    
-    return result.rows[0];
+    // Retourner les données formatées
+    return {
+      id: updatedVersement.id,
+      numero_cheque: updatedVersement.numero_cheque,
+      amount: updatedVersement.amount,
+      date_creation: updatedVersement.created_at,
+      client_id: updatedVersement.client_id,
+      numero_compte: updatedVersement.account_number,
+      nom_client: updatedVersement.name,
+      status: updatedVersement.status,
+      description: updatedVersement.description
+    };
   } catch (error) {
-    await db.query('ROLLBACK');
     logger.error(`Erreur lors de la mise à jour du versement ${id}:`, error);
     throw error;
   }
@@ -125,48 +137,11 @@ const updateVersement = async (id, versementData, userId) => {
  */
 const deleteVersement = async (id, userId) => {
   try {
-    // Récupérer d'abord le versement existant
-    const existingVersement = await getVersementById(id);
-    if (!existingVersement) {
-      throw new Error('Versement non trouvé');
-    }
+    // Supprimer le versement en utilisant le modèle
+    const result = await Versement.delete(id, userId);
     
-    // Démarrer une transaction
-    await db.query('BEGIN');
-    
-    // Enregistrer l'audit avant la suppression
-    await db.query(
-      `INSERT INTO audit_versement
-        (user_id, action, entity_type, entity_id, client_id, versement_id, 
-         old_values, action_type, old_balance, new_balance)
-       VALUES ($1, 'delete', 'versement', $2, $3, $2, 
-              $4, 'suppression_versement', 
-              (SELECT balance FROM clients WHERE id = $3),
-              (SELECT balance FROM clients WHERE id = $3) - $5)`,
-      [
-        userId, 
-        id, 
-        existingVersement.client_id, 
-        JSON.stringify(existingVersement),
-        existingVersement.montant
-      ]
-    );
-    
-    // Supprimer le versement
-    const result = await db.query(
-      'DELETE FROM versements WHERE id = $1 RETURNING *',
-      [id]
-    );
-    
-    // Valider la transaction
-    await db.query('COMMIT');
-    
-    // Émettre un événement pour les mises à jour en temps réel
-    socketService.emitAuditUpdate('delete');
-    
-    return result.rows[0];
+    return result;
   } catch (error) {
-    await db.query('ROLLBACK');
     logger.error(`Erreur lors de la suppression du versement ${id}:`, error);
     throw error;
   }
@@ -177,107 +152,61 @@ const deleteVersement = async (id, userId) => {
  */
 const getVersementStats = async () => {
   try {
-    const result = await db.query(`
-      SELECT COUNT(*) as total_versements, SUM(amount) as montant_total
-      FROM versements
-    `);
-    return result.rows[0];
+    // Récupérer tous les versements
+    const versements = await Versement.getAll();
+    
+    // Calculer les statistiques
+    const totalVersements = versements.length;
+    const amountTotal = versements.reduce((sum, v) => sum + parseFloat(v.amount), 0);
+    
+    return {
+      total_versements: totalVersements,
+      amount_total: amountTotal
+    };
   } catch (error) {
     logger.error('Erreur lors de la récupération des statistiques de versements:', error);
     throw error;
   }
 };
 
-/**
- * Valide un versement
- */
-const validateVersement = async (id, userId) => {
+
+
+const getVersementsByDateRange = async (startDate, endDate) => {
   try {
-    // Démarrer une transaction
-    await db.query('BEGIN');
-    
-    // Mettre à jour le statut du versement
-    const result = await db.query(
-      `UPDATE versements
-       SET status = 'validé', updated_at = NOW()
-       WHERE id = $1
-       RETURNING *`,
-      [id]
-    );
-    
-    // Enregistrer l'audit
-    await db.query(
-      `INSERT INTO audit_versement
-        (user_id, action, entity_type, entity_id, client_id, versement_id, 
-         old_values, new_values, action_type)
-       VALUES ($1, 'update', 'versement', $2, $3, $2, 
-              $4, $5, 'validation_versement')`,
-      [
-        userId, 
-        id, 
-        result.rows[0].client_id, 
-        JSON.stringify({status: 'en_attente'}),
-        JSON.stringify({status: 'validé'})
-      ]
-    );
-    
-    // Valider la transaction
-    await db.query('COMMIT');
-    
-    // Émettre un événement pour les mises à jour en temps réel
-    socketService.emitAuditUpdate('update');
-    
-    return result.rows[0];
+    const versements = await Versement.getByDateRange(startDate, endDate);
+    return versements.map(v => ({
+      id: v.id,
+      numero_cheque: v.numero_cheque,
+      amount: v.amount,
+      date_creation: v.created_at,
+      client_id: v.client_id,
+      numero_compte: v.account_number,
+      nom_client: v.name,
+      status: v.status,
+      description: v.description
+    }));
   } catch (error) {
-    await db.query('ROLLBACK');
-    logger.error(`Erreur lors de la validation du versement ${id}:`, error);
+    logger.error('Erreur lors de la récupération des versements par plage de dates:', error);
     throw error;
   }
 };
 
-/**
- * Rejette un versement
- */
-const rejectVersement = async (id, userId, reason) => {
+const getVersementsByClient = async (clientId) => {
   try {
-    // Démarrer une transaction
-    await db.query('BEGIN');
-    
-    // Mettre à jour le statut du versement
-    const result = await db.query(
-      `UPDATE versements
-       SET status = 'rejeté', description = COALESCE(description, '') || ' | Rejeté: ' || $2, updated_at = NOW()
-       WHERE id = $1
-       RETURNING *`,
-      [id, reason || 'Aucune raison fournie']
-    );
-    
-    // Enregistrer l'audit
-    await db.query(
-      `INSERT INTO audit_versement
-        (user_id, action, entity_type, entity_id, client_id, versement_id, 
-         old_values, new_values, action_type)
-       VALUES ($1, 'update', 'versement', $2, $3, $2, 
-              $4, $5, 'rejet_versement')`,
-      [
-        userId, 
-        id, 
-        result.rows[0].client_id, 
-        JSON.stringify({status: 'en_attente'}),
-        JSON.stringify({status: 'rejeté', reason: reason || 'Aucune raison fournie'})
-      ]
-    );
-    
-    // Valider la transaction
-    await db.query('COMMIT');
-    
-    // Émettre un événement pour les mises à jour en temps réel
-    socketService.emitAuditUpdate('update');
-    
-    return result.rows[0];
+    const versements = await Versement.getByClientId(clientId);
+    return versements.map(v => ({
+      id: v.id,
+      numero_cheque: v.numero_cheque,
+      amount: v.amount,
+      date_creation: v.created_at,
+      client_id: v.client_id,
+      numero_compte: v.account_number,
+      nom_client: v.name,
+      status: v.status,
+      description: v.description
+    }));
   } catch (error) {
-    await db.query('ROLLBACK');
-    logger.error(`Erreur lors du rejet du versement ${id}:`, error);
+    logger.error(`Erreur lors de la récupération des versements du client ${clientId}:`, error);
     throw error;
   }
 };
@@ -289,6 +218,6 @@ module.exports = {
   updateVersement,
   deleteVersement,
   getVersementStats,
-  validateVersement,
-  rejectVersement
+  getVersementsByDateRange,
+  getVersementsByClient
 };

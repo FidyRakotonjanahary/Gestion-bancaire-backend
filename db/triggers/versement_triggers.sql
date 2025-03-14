@@ -27,7 +27,7 @@ CREATE OR REPLACE FUNCTION update_client_balance_on_update()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Mettre à jour le solde du client selon la formule:
-  -- nouveau solde = ancien solde + montant nouveau - montant ancien
+  -- nouveau solde = ancien solde + amount nouveau - amount ancien
   UPDATE clients
   SET balance = balance + (NEW.amount - OLD.amount),
       updated_at = NOW()
@@ -46,8 +46,18 @@ EXECUTE FUNCTION update_client_balance_on_update();
 -- Trigger pour mettre à jour automatiquement le solde client lors de la suppression d'un versement
 CREATE OR REPLACE FUNCTION update_client_balance_on_delete()
 RETURNS TRIGGER AS $$
+DECLARE
+  new_balance DECIMAL(15, 2);
 BEGIN
-  -- Réduire le solde du client du montant du versement supprimé
+  -- Calculer le nouveau solde
+  SELECT balance - OLD.amount INTO new_balance FROM clients WHERE id = OLD.client_id;
+  
+  -- Vérifier si le nouveau solde serait négatif
+  IF new_balance < 0 THEN
+    RAISE EXCEPTION 'La suppression de ce versement rendrait le solde du client négatif';
+  END IF;
+  
+  -- Réduire le solde du client du amount du versement supprimé
   UPDATE clients
   SET balance = balance - OLD.amount,
       updated_at = NOW()

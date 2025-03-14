@@ -1,64 +1,31 @@
-const db = require('../utils/db');
-const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/loggers');
-const auditService = require('../services/auditService');
+const versementService = require('../services/versementService');
 const socketService = require('../services/socketService');
+const { v4: uuidv4 } = require('uuid');
 
 exports.createVersement = async (req, res) => {
-  const { client_id, cheque_number, amount } = req.body;
+  const { client_id, numero_cheque, amount, description } = req.body;  // Changé amount en amount
   const user_id = req.user.id;
   
   try {
-    // Vérifier si le client existe
-    const clientCheck = await db.query(
-      'SELECT * FROM clients WHERE id = $1',
-      [client_id]
-    );
+    // Préparer les données pour le service en utilisant les mêmes noms de variables
+    const versementData = {
+      client_id: client_id,
+      numero_cheque: numero_cheque || ('VER-' + uuidv4().substring(0, 8).toUpperCase()), // Génération d'un numéro si non fourni
+      amount: amount,  
+      description: description
+    };
     
-    if (clientCheck.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Client non trouvé'
-      });
-    }
+    // Appeler le service pour créer le versement
+    const newVersement = await versementService.createVersement(versementData, user_id);
     
-    // Générer un numéro de versement unique
-    const versement_number = 'VER-' + uuidv4().substring(0, 8).toUpperCase();
-    
-    // Obtenir le solde actuel du client
-    const oldBalance = parseFloat(clientCheck.rows[0].balance) || 0;
-    
-    // Calculer le nouveau solde
-    const newBalance = oldBalance + parseFloat(amount);
-    
-    // Insérer le versement
-    const result = await db.query(
-      `INSERT INTO versements (versement_number, cheque_number, client_id, amount, created_by)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [versement_number, cheque_number, client_id, amount, user_id]
-    );
-    
-    // Mettre à jour le solde du client
-    await db.query(
-      `UPDATE clients SET balance = $1, updated_at = NOW() WHERE id = $2`,
-      [newBalance, client_id]
-    );
-    
-    // Enregistrer l'audit
-    await auditService.createAudit({
-      action_type: 'INSERT',
-      versement_id: result.rows[0].id,
-      old_balance: oldBalance,
-      new_balance: newBalance,
-      user_id: user_id
-    });
-    
-    // Émettre un événement socket pour mise à jour en temps réel
+    // Émettre un événement socket pour mise à jour en temps réel (maintenu pour compatibilité)
     socketService.emitAuditEvent({
       type: 'INSERT',
-      versement: result.rows[0],
-      user: req.user.username
+      versement: newVersement,
+      user: req.user.username,
+      versement_id: newVersement.id, 
+      client_id: client_id 
     });
     
     socketService.updateAuditCounters();
@@ -66,30 +33,25 @@ exports.createVersement = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Versement créé avec succès',
-      data: result.rows[0]
+      data: newVersement
     });
   } catch (error) {
     logger.error('Erreur lors de la création du versement:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la création du versement'
+      message: `Erreur lors de la création du versement: ${error.message}`
     });
   }
 };
 
 exports.getAllVersements = async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT v.*, c.name, c.account_number, u.username as created_by_user
-       FROM versements v
-       JOIN clients c ON v.client_id = c.id
-       LEFT JOIN users u ON v.created_by = u.id
-       ORDER BY v.created_at DESC`
-    );
+    // Récupérer tous les versements via le service
+    const versements = await versementService.getAllVersements();
     
     res.status(200).json({
       success: true,
-      data: result.rows
+      data: versements
     });
   } catch (error) {
     logger.error('Erreur lors de la récupération des versements:', error);
@@ -104,16 +66,10 @@ exports.getVersementById = async (req, res) => {
   const { id } = req.params;
   
   try {
-    const result = await db.query(
-      `SELECT v.*, c.name, c.account_number, u.username as created_by_user
-       FROM versements v
-       JOIN clients c ON v.client_id = c.id
-       LEFT JOIN users u ON v.created_by = u.id
-       WHERE v.id = $1`,
-      [id]
-    );
+    // Récupérer le versement par ID via le service
+    const versement = await versementService.getVersementById(id);
     
-    if (result.rows.length === 0) {
+    if (!versement) {
       return res.status(404).json({
         success: false,
         message: 'Versement non trouvé'
@@ -122,7 +78,7 @@ exports.getVersementById = async (req, res) => {
     
     res.status(200).json({
       success: true,
-      data: result.rows[0]
+      data: versement
     });
   } catch (error) {
     logger.error('Erreur lors de la récupération du versement:', error);
@@ -135,64 +91,34 @@ exports.getVersementById = async (req, res) => {
 
 exports.updateVersement = async (req, res) => {
   const { id } = req.params;
-  const { cheque_number, amount } = req.body;
+  const { numero_cheque, amount, description } = req.body;  // Supprimez status
   const user_id = req.user.id;
   
   try {
-    // Vérifier si le versement existe et récupérer l'ancien montant
-    const versementCheck = await db.query(
-      `SELECT v.*, c.balance as client_balance, c.id as client_id
-       FROM versements v
-       JOIN clients c ON v.client_id = c.id
-       WHERE v.id = $1`,
-      [id]
-    );
+    // Vérifier si le versement existe
+    const existingVersement = await versementService.getVersementById(id);
     
-    if (versementCheck.rows.length === 0) {
+    if (!existingVersement) {
       return res.status(404).json({
         success: false,
         message: 'Versement non trouvé'
       });
     }
     
-    const oldVersement = versementCheck.rows[0];
-    const oldAmount = parseFloat(oldVersement.amount);
-    const newAmount = parseFloat(amount);
-    const clientId = oldVersement.client_id;
-    const oldBalance = parseFloat(oldVersement.client_balance);
+    // Préparer les données pour le service
+    const versementData = {
+      numero_cheque: numero_cheque,
+      amount: amount,
+      description: description
+    };
     
-    // Calculer le nouveau solde du client
-    // nouveau solde = ancien solde + nouveau montant - ancien montant
-    const newBalance = oldBalance + newAmount - oldAmount;
-    
-    // Mettre à jour le versement
-    const result = await db.query(
-      `UPDATE versements
-       SET cheque_number = $1, amount = $2, updated_at = NOW()
-       WHERE id = $3
-       RETURNING *`,
-      [cheque_number, newAmount, id]
-    );
-    
-    // Mettre à jour le solde du client
-    await db.query(
-      `UPDATE clients SET balance = $1, updated_at = NOW() WHERE id = $2`,
-      [newBalance, clientId]
-    );
-    
-    // Enregistrer l'audit
-    await auditService.createAudit({
-      action_type: 'UPDATE',
-      versement_id: id,
-      old_balance: oldBalance,
-      new_balance: newBalance,
-      user_id: user_id
-    });
+    // Mettre à jour le versement via le service
+    const updatedVersement = await versementService.updateVersement(id, versementData, user_id);
     
     // Émettre un événement socket pour mise à jour en temps réel
     socketService.emitAuditEvent({
       type: 'UPDATE',
-      versement: result.rows[0],
+      versement: updatedVersement,
       user: req.user.username
     });
     
@@ -201,13 +127,20 @@ exports.updateVersement = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Versement mis à jour avec succès',
-      data: result.rows[0]
+      data: updatedVersement
     });
   } catch (error) {
+    if (error.message.includes('doit être positif')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+    // Ajoutez un cas par défaut pour gérer les autres erreurs
     logger.error('Erreur lors de la mise à jour du versement:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: 'Erreur lors de la mise à jour du versement'
+      message: `Erreur lors de la mise à jour du versement: ${error.message}`
     });
   }
 };
@@ -218,54 +151,22 @@ exports.deleteVersement = async (req, res) => {
   
   try {
     // Vérifier si le versement existe
-    const versementCheck = await db.query(
-      `SELECT v.*, c.balance as client_balance, c.id as client_id
-       FROM versements v
-       JOIN clients c ON v.client_id = c.id
-       WHERE v.id = $1`,
-      [id]
-    );
+    const existingVersement = await versementService.getVersementById(id);
     
-    if (versementCheck.rows.length === 0) {
+    if (!existingVersement) {
       return res.status(404).json({
         success: false,
         message: 'Versement non trouvé'
       });
     }
     
-    const oldVersement = versementCheck.rows[0];
-    const amount = parseFloat(oldVersement.amount);
-    const clientId = oldVersement.client_id;
-    const oldBalance = parseFloat(oldVersement.client_balance);
-    
-    // Calculer le nouveau solde du client (après suppression)
-    const newBalance = oldBalance - amount;
-    
-    // Supprimer le versement
-    const result = await db.query(
-      'DELETE FROM versements WHERE id = $1 RETURNING *',
-      [id]
-    );
-    
-    // Mettre à jour le solde du client
-    await db.query(
-      `UPDATE clients SET balance = $1, updated_at = NOW() WHERE id = $2`,
-      [newBalance, clientId]
-    );
-    
-    // Enregistrer l'audit
-    await auditService.createAudit({
-      action_type: 'DELETE',
-      versement_id: id,
-      old_balance: oldBalance,
-      new_balance: newBalance,
-      user_id: user_id
-    });
+    // Supprimer le versement via le service
+    const deletedVersement = await versementService.deleteVersement(id, user_id);
     
     // Émettre un événement socket pour mise à jour en temps réel
     socketService.emitAuditEvent({
       type: 'DELETE',
-      versement: oldVersement,
+      versement: existingVersement,
       user: req.user.username
     });
     
@@ -274,13 +175,13 @@ exports.deleteVersement = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Versement supprimé avec succès',
-      data: result.rows[0]
+      data: deletedVersement
     });
   } catch (error) {
     logger.error('Erreur lors de la suppression du versement:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la suppression du versement'
+      message: `Erreur lors de la suppression du versement: ${error.message}`
     });
   }
 };
@@ -289,19 +190,12 @@ exports.getVersementsByDateRange = async (req, res) => {
   const { start_date, end_date } = req.query;
   
   try {
-    const result = await db.query(
-      `SELECT v.*, c.name, c.account_number, u.username as created_by_user
-       FROM versements v
-       JOIN clients c ON v.client_id = c.id
-       LEFT JOIN users u ON v.created_by = u.id
-       WHERE v.created_at BETWEEN $1 AND $2
-       ORDER BY v.created_at DESC`,
-      [start_date, end_date]
-    );
+    // Utiliser le service implémenté
+    const versements = await versementService.getVersementsByDateRange(start_date, end_date);
     
     res.status(200).json({
       success: true,
-      data: result.rows
+      data: versements
     });
   } catch (error) {
     logger.error('Erreur lors de la récupération des versements par plage de dates:', error);
@@ -314,11 +208,12 @@ exports.getVersementsByDateRange = async (req, res) => {
 
 exports.getVersementCount = async (req, res) => {
   try {
-    const result = await db.query('SELECT COUNT(*) FROM versements');
+    // Obtenir les statistiques de versement qui incluent le comptage
+    const stats = await versementService.getVersementStats();
     
     res.status(200).json({
       success: true,
-      count: parseInt(result.rows[0].count)
+      count: stats.total_versements
     });
   } catch (error) {
     logger.error('Erreur lors du comptage des versements:', error);
@@ -330,22 +225,15 @@ exports.getVersementCount = async (req, res) => {
 };
 
 exports.getVersementsByClient = async (req, res) => {
-  const { clientId } = req.params;
+  const { client_id } = req.params;  
   
   try {
-    const result = await db.query(
-      `SELECT v.*, c.name, c.account_number, u.username as created_by_user
-       FROM versements v
-       JOIN clients c ON v.client_id = c.id
-       LEFT JOIN users u ON v.created_by = u.id
-       WHERE v.client_id = $1
-       ORDER BY v.created_at DESC`,
-      [clientId]
-    );
+    // Utiliser le service implémenté
+    const versements = await versementService.getVersementsByClient(client_id);
     
     res.status(200).json({
       success: true,
-      data: result.rows
+      data: versements
     });
   } catch (error) {
     logger.error('Erreur lors de la récupération des versements du client:', error);
@@ -355,5 +243,6 @@ exports.getVersementsByClient = async (req, res) => {
     });
   }
 };
+
 
 module.exports = exports;

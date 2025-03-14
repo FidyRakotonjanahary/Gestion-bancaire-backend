@@ -81,24 +81,25 @@ module.exports = {
   },
   
   validateVersementInput: (req, res, next) => {
-    const { client_id, amount } = req.body;
+    const { client_id, amount } = req.body;  // Changé amount en amount
     
     if (!client_id || !amount) {
       return res.status(400).json({
         success: false,
-        message: 'Le numéro de compte client et le montant sont requis'
+        message: 'Le numéro de compte client et le amount sont requis'
       });
     }
     
-    if (!validators.isValidAmount(amount)) {
+    if (!validators.isValidAmount(amount)) {  // Changé amount en amount
       return res.status(400).json({
         success: false,
-        message: 'Le montant doit être un nombre positif'
+        message: 'Le amount doit être un nombre positif'
       });
     }
     
     next();
   },
+  
   validateClientData: (req, res, next) => {
     const { name } = req.body;
     
@@ -111,6 +112,23 @@ module.exports = {
     
     // Sanitize input
     req.body.name = validators.sanitizeInput(name);
+    
+    next();
+  },
+  
+  // Ajout de la validation pour la raison de rejet
+  validateRejectReason: (req, res, next) => {
+    const { reason } = req.body;
+    
+    if (!reason) {
+      return res.status(400).json({
+        success: false,
+        message: 'La raison du rejet est requise'
+      });
+    }
+    
+    // Sanitize input
+    req.body.reason = validators.sanitizeInput(reason);
     
     next();
   }

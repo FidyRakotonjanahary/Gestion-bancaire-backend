@@ -102,22 +102,19 @@ exports.getRecentAudits = async (req, res) => {
 
 exports.getAuditsByDateRange = async (req, res) => {
   const { start_date, end_date } = req.query;
+  const limit = parseInt(req.query.limit) || 100;
   
   try {
-    // Note: Le service auditService n'a pas de méthode spécifique pour le filtrage par date
-    // Pour une implémentation complète, il faudrait ajouter cette fonctionnalité
-    // Cette version utilise getAll() et filtrera côté serveur
-    const allAudits = await auditService.getAudits({ limit: 1000 });
-    
-    // Filtrer par date
-    const filteredAudits = allAudits.items.filter(audit => {
-      const auditDate = new Date(audit.created_at);
-      return auditDate >= new Date(start_date) && auditDate <= new Date(end_date);
+    // Utiliser directement le service avec les dates
+    const audits = await auditService.getAudits({ 
+      startDate: start_date, 
+      endDate: end_date, 
+      limit 
     });
     
     res.status(200).json({
       success: true,
-      data: filteredAudits
+      data: audits.items
     });
   } catch (error) {
     logger.error('Erreur lors de la récupération des audits par plage de dates:', error);

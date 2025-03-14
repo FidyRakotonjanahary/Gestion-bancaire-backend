@@ -49,8 +49,7 @@ CREATE TABLE IF NOT EXISTS versements (
   description TEXT,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP,
-  status VARCHAR(20) NOT NULL DEFAULT 'en_attente' CHECK (status IN ('en_attente', 'validé', 'rejeté'))
+  updated_at TIMESTAMP
 );
 
 -- Tables pour l'audit et les permissions
@@ -136,7 +135,7 @@ CREATE TRIGGER update_user_permissions_timestamp
 BEFORE UPDATE ON user_permissions
 FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
--- Ajout de contraintes CHECK pour les montants positifs
+-- Ajout de contraintes CHECK pour les amounts positifs
 ALTER TABLE versements 
 ADD CONSTRAINT positive_amount CHECK (amount > 0);
 

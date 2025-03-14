@@ -279,6 +279,25 @@ class Audit {
     
     return stats;
   }
+
+  static async getByDateRange(startDate, endDate, limit = 100) {
+    const query = `
+      SELECT a.id, a.user_id, a.action, a.entity_type, a.entity_id, 
+             a.old_values, a.new_values, a.client_id, a.versement_id,
+             a.old_balance, a.new_balance, a.action_type, a.created_at,
+             u.username as user_username,
+             c.name as name
+      FROM audit_versement a
+      LEFT JOIN users u ON a.user_id = u.id
+      LEFT JOIN clients c ON a.client_id = c.id
+      WHERE a.created_at BETWEEN $1 AND $2
+      ORDER BY a.created_at DESC
+      LIMIT $3
+    `;
+    
+    const result = await pool.query(query, [startDate, endDate, limit]);
+    return result.rows;
+  }
 }
 
 module.exports = Audit;

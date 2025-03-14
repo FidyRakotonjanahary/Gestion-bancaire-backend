@@ -151,7 +151,7 @@ class Client {
   
   static async getClientTransactions(id) {
     const query = `
-      SELECT v.id, v.numero_cheque, v.amount, v.description, v.status, 
+      SELECT v.id, v.numero_cheque, v.amount, v.description, 
              v.created_at, v.updated_at, 
              u.username as created_by_username
       FROM versements v

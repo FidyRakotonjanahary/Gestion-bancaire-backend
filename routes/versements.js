@@ -6,7 +6,25 @@ const permissionMiddleware = require('../middleware/permissions');
 const validationMiddleware = require('../middleware/validation');
 const auditMiddleware = require('../middleware/audit');
 
-// Routes pour les versements
+// Routes pour les statistiques et recherches
+router.get('/stats', 
+  authMiddleware.verifyToken,
+  versementController.getVersementCount
+);
+
+router.get('/date', 
+  authMiddleware.verifyToken,
+  versementController.getVersementsByDateRange
+);
+
+// Route pour obtenir les versements d'un client spécifique
+// Attention: cette route doit être avant '/:id' pour éviter la confusion des paramètres
+router.get('/client/:client_id', 
+  authMiddleware.verifyToken, 
+  versementController.getVersementsByClient
+);
+
+// Routes CRUD standards
 router.get('/', 
   authMiddleware.verifyToken, 
   versementController.getAllVersements
@@ -21,7 +39,6 @@ router.post('/',
   authMiddleware.verifyToken, 
   permissionMiddleware.checkPermission('versement_create'),
   validationMiddleware.validateVersementInput,
-  auditMiddleware.logAudit('insert'),
   versementController.createVersement
 );
 
@@ -29,21 +46,13 @@ router.put('/:id',
   authMiddleware.verifyToken, 
   permissionMiddleware.checkPermission('versement_update'),
   validationMiddleware.validateVersementInput,
-  auditMiddleware.logAudit('update'),
   versementController.updateVersement
 );
 
 router.delete('/:id', 
   authMiddleware.verifyToken, 
   permissionMiddleware.checkPermission('versement_delete'),
-  auditMiddleware.logAudit('delete'),
   versementController.deleteVersement
-);
-
-// Route pour obtenir les versements d'un client spécifique
-router.get('/client/:clientId', 
-  authMiddleware.verifyToken, 
-  versementController.getVersementsByClient
 );
 
 module.exports = router;

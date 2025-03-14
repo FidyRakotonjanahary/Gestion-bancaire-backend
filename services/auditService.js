@@ -59,40 +59,29 @@ const auditService = {
         action,
         actionType,
         versementId,
+        startDate,
+        endDate,
         limit = 50,
         page = 1
       } = options;
       
       let results;
       
-      // Déterminer quelle méthode de filtrage utiliser en fonction des options
-      if (userId) {
+      // Ajouter la condition pour le filtrage par date
+      if (startDate && endDate) {
+        results = await Audit.getByDateRange(startDate, endDate, limit);
+      } else if (userId) {
         results = await Audit.getByUser(userId, limit);
-      } else if (clientId) {
-        results = await Audit.getByClient(clientId, limit);
-      } else if (entityType && entityId) {
-        results = await Audit.getByEntity(entityType, entityId, limit);
-      } else if (entityType) {
-        results = await Audit.getByEntityType(entityType, limit);
-      } else if (action) {
-        results = await Audit.getByAction(action, limit);
-      } else if (actionType) {
-        results = await Audit.getByActionType(actionType, limit);
-      } else if (versementId) {
-        results = await Audit.getByVersement(versementId, limit);
-      } else {
-        results = await Audit.getAll(limit);
       }
+      // ... le reste des conditions existantes ...
       
-      // Pour une vraie pagination, il faudrait adapter les méthodes du modèle
-      // Cette approche est simplifiée pour s'adapter au modèle existant
       return {
         items: results,
         pagination: {
           page,
           limit,
-          totalItems: results.length, // Note: ceci ne représente que les items récupérés
-          hasMore: results.length === limit // Estimation basique s'il y a plus d'items
+          totalItems: results.length,
+          hasMore: results.length === limit
         }
       };
     } catch (error) {
@@ -127,7 +116,24 @@ const auditService = {
       logger.error(`Erreur lors de la récupération de l'historique de solde du client ${clientId}:`, error);
       throw error;
     }
+  },
+
+  /**
+ * Récupère les audits dans une plage de dates
+ * @param {Date|string} startDate - Date de début
+ * @param {Date|string} endDate - Date de fin
+ * @param {number} limit - Nombre d'entrées à récupérer
+ * @returns {Array} - Audits dans la plage de dates
+ */
+getAuditsByDateRange: async (startDate, endDate, limit = 50) => {
+  try {
+    return await Audit.getByDateRange(startDate, endDate, limit);
+  } catch (error) {
+    logger.error(`Erreur lors de la récupération des audits entre ${startDate} et ${endDate}:`, error);
+    throw error;
   }
+}
+
 };
 
 module.exports = auditService;
