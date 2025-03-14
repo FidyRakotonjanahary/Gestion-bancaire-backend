@@ -298,6 +298,23 @@ class Audit {
     const result = await pool.query(query, [startDate, endDate, limit]);
     return result.rows;
   }
+
+  static async getCounters() {
+    const query = `
+      SELECT 
+        COUNT(*) as total,
+        COUNT(DISTINCT user_id) as unique_users,
+        COUNT(DISTINCT client_id) as unique_clients,
+        COUNT(DISTINCT versement_id) as unique_versements,
+        COUNT(CASE WHEN action_type = 'INSERT' THEN 1 END) as inserts,
+        COUNT(CASE WHEN action_type = 'UPDATE' THEN 1 END) as updates,
+        COUNT(CASE WHEN action_type = 'DELETE' THEN 1 END) as deletes
+      FROM audit_versement
+    `;
+    
+    const result = await pool.query(query);
+    return result.rows[0];
+  }
 }
 
 module.exports = Audit;

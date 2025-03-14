@@ -13,7 +13,7 @@ module.exports = {
     
     // Détecter les ressources non fermées
     detectOpenHandles: true,
-
+    // testRegex: '/tests/audit.test.js',
     // Ignorer certains dossiers
     testPathIgnorePatterns: ["/node_modules/"],
   };

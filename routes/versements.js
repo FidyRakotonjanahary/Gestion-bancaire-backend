@@ -4,7 +4,6 @@ const versementController = require('../controllers/versementController');
 const authMiddleware = require('../middleware/auth');
 const permissionMiddleware = require('../middleware/permissions');
 const validationMiddleware = require('../middleware/validation');
-const auditMiddleware = require('../middleware/audit');
 
 // Routes pour les statistiques et recherches
 router.get('/stats', 

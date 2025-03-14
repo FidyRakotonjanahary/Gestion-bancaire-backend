@@ -67,13 +67,27 @@ const auditService = {
       
       let results;
       
-      // Ajouter la condition pour le filtrage par date
+      // Implémenter toutes les conditions de filtrage en utilisant les méthodes existantes du modèle
       if (startDate && endDate) {
         results = await Audit.getByDateRange(startDate, endDate, limit);
       } else if (userId) {
         results = await Audit.getByUser(userId, limit);
+      } else if (clientId) {
+        results = await Audit.getByClient(clientId, limit);
+      } else if (versementId) {
+        results = await Audit.getByVersement(versementId, limit);
+      } else if (actionType) {
+        results = await Audit.getByActionType(actionType, limit);
+      } else if (action) {
+        results = await Audit.getByAction(action, limit);
+      } else if (entityType && entityId) {
+        results = await Audit.getByEntity(entityType, entityId, limit);
+      } else if (entityType) {
+        results = await Audit.getByEntityType(entityType, limit);
+      } else {
+        // Cas par défaut - récupérer tous les audits récents
+        results = await Audit.getAll(limit);
       }
-      // ... le reste des conditions existantes ...
       
       return {
         items: results,
