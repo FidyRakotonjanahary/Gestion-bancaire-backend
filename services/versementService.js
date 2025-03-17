@@ -16,7 +16,6 @@ const getAllVersements = async () => {
       client_id: v.client_id,
       numero_compte: v.account_number,
       nom_client: v.name,
-      status: v.status,
       description: v.description
     }));
   } catch (error) {
@@ -42,7 +41,6 @@ const getVersementById = async (id) => {
       client_id: versement.client_id,
       numero_compte: versement.account_number,
       nom_client: versement.name,
-      status: versement.status,
       description: versement.description
     };
   } catch (error) {
@@ -64,7 +62,6 @@ const createVersement = async (versementData, userId) => {
       numero_cheque: numero_cheque,
       amount: amount,
       description: description,
-      status: 'en_attente',
       createdBy: userId
     };
     
@@ -78,9 +75,6 @@ const createVersement = async (versementData, userId) => {
       amount: newVersement.amount,
       date_creation: newVersement.created_at,
       client_id: newVersement.client_id,
-      numero_compte: newVersement.account_number,
-      nom_client: newVersement.name,
-      status: newVersement.status,
       description: newVersement.description
     };
   } catch (error) {
@@ -93,15 +87,14 @@ const createVersement = async (versementData, userId) => {
  * Met à jour un versement
  */
 const updateVersement = async (id, versementData, userId) => {
-  const { numero_cheque, amount, description, status } = versementData;
+  const { numero_cheque, amount, description } = versementData;
   
   try {
     // Adapter les données pour le modèle Versement
     const versementModelData = {
       numero_cheque: numero_cheque,
       amount: amount,
-      description: description,
-      status: status
+      description: description
     };
     
     // Nettoyer les données null ou undefined
@@ -121,9 +114,6 @@ const updateVersement = async (id, versementData, userId) => {
       amount: updatedVersement.amount,
       date_creation: updatedVersement.created_at,
       client_id: updatedVersement.client_id,
-      numero_compte: updatedVersement.account_number,
-      nom_client: updatedVersement.name,
-      status: updatedVersement.status,
       description: updatedVersement.description
     };
   } catch (error) {
@@ -169,8 +159,9 @@ const getVersementStats = async () => {
   }
 };
 
-
-
+/**
+ * Récupère les versements dans une plage de dates
+ */
 const getVersementsByDateRange = async (startDate, endDate) => {
   try {
     const versements = await Versement.getByDateRange(startDate, endDate);
@@ -182,7 +173,6 @@ const getVersementsByDateRange = async (startDate, endDate) => {
       client_id: v.client_id,
       numero_compte: v.account_number,
       nom_client: v.name,
-      status: v.status,
       description: v.description
     }));
   } catch (error) {
@@ -191,6 +181,9 @@ const getVersementsByDateRange = async (startDate, endDate) => {
   }
 };
 
+/**
+ * Récupère les versements d'un client spécifique
+ */
 const getVersementsByClient = async (clientId) => {
   try {
     const versements = await Versement.getByClientId(clientId);
@@ -202,7 +195,6 @@ const getVersementsByClient = async (clientId) => {
       client_id: v.client_id,
       numero_compte: v.account_number,
       nom_client: v.name,
-      status: v.status,
       description: v.description
     }));
   } catch (error) {

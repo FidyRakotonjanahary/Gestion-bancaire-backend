@@ -91,7 +91,6 @@ exports.getVersementById = async (req, res) => {
 
 exports.updateVersement = async (req, res) => {
   const { id } = req.params;
-  const { numero_cheque, amount, description } = req.body;  // Supprimez status
   const user_id = req.user.id;
   
   try {
@@ -105,21 +104,23 @@ exports.updateVersement = async (req, res) => {
       });
     }
     
-    // Préparer les données pour le service
-    const versementData = {
-      numero_cheque: numero_cheque,
-      amount: amount,
-      description: description
-    };
+    // Préparer les données pour le service - clé de la solution
+    const versementData = {};
+    
+    // Ne récupérer que les champs fournis dans la requête
+    if (req.body.numero_cheque !== undefined) versementData.numero_cheque = req.body.numero_cheque;
+    if (req.body.amount !== undefined) versementData.amount = req.body.amount;
+    if (req.body.description !== undefined) versementData.description = req.body.description;
     
     // Mettre à jour le versement via le service
     const updatedVersement = await versementService.updateVersement(id, versementData, user_id);
     
-    // Émettre un événement socket pour mise à jour en temps réel
     socketService.emitAuditEvent({
       type: 'UPDATE',
       versement: updatedVersement,
-      user: req.user.username
+      user: req.user.username,
+      versement_id: id,
+      client_id: existingVersement.client_id // Récupérer client_id du versement existant
     });
     
     socketService.updateAuditCounters();

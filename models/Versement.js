@@ -35,7 +35,6 @@ class Versement {
         throw new Error(`Client avec ID ${clientId} non trouvé`);
       }
       
-      // Modifier l'audit pour qu'il n'utilise plus le statut
       await this.logAudit(client, {
         userId: createdBy,
         action: 'CREATE',
@@ -141,15 +140,15 @@ class Versement {
       
       // Mettre à jour le versement sans le statut
       const updateVersementQuery = `
-        UPDATE versements
-        SET numero_cheque = $1, amount = $2, description = $3
-        WHERE id = $4
-        RETURNING id, client_id, numero_cheque, amount, description, created_by, updated_at
-      `;
+      UPDATE versements
+      SET numero_cheque = $1, amount = $2, description = $3
+      WHERE id = $4
+      RETURNING id, client_id, numero_cheque, amount, description, created_by, updated_at
+    `;
       
       const updateVersementValues = [
         numero_cheque || oldVersement.numero_cheque, 
-        amount, 
+        amount !== undefined ? amount : oldVersement.amount, // Ajout de cette vérification
         description !== undefined ? description : oldVersement.description,
         id
       ];
@@ -187,7 +186,6 @@ class Versement {
   }
 
   static async delete(id, userId) {
-    // Commencer une transaction
     const client = await pool.getClient();
     
     try {
@@ -214,20 +212,7 @@ class Versement {
       }
       const oldBalance = parseFloat(currentClient.balance);
       
-      // Supprimer le versement
-      const deleteQuery = `
-        DELETE FROM versements
-        WHERE id = $1
-        RETURNING id
-      `;
-      
-      const deleteResult = await client.query(deleteQuery, [id]);
-      
-      // Récupérer le solde mis à jour par le trigger
-      const updatedClient = await Client.getById(versement.client_id);
-      const newBalance = parseFloat(updatedClient.balance);
-      
-      // Enregistrer l'action dans la table d'audit
+      // IMPORTANT : Enregistrer l'audit AVANT la suppression du versement
       await this.logAudit(client, {
         userId,
         action: 'DELETE',
@@ -238,9 +223,19 @@ class Versement {
         clientId: versement.client_id,
         versementId: id,
         oldBalance: oldBalance,
-        newBalance: newBalance,
+        // Estimation du nouveau solde (à ajuster selon votre logique)
+        newBalance: oldBalance - parseFloat(versement.amount),
         actionType: 'suppression_versement'
       });
+      
+      // Supprimer le versement APRÈS avoir enregistré l'audit
+      const deleteQuery = `
+        DELETE FROM versements
+        WHERE id = $1
+        RETURNING id
+      `;
+      
+      const deleteResult = await client.query(deleteQuery, [id]);
       
       await client.query('COMMIT');
       return deleteResult.rows[0];

@@ -1,8 +1,8 @@
 const request = require('supertest');
-const { app } = require('../app'); // Importation de l'application Express
+const { app } = require('../app'); 
 const pool = require('../config/database');
 const db = require('../utils/db');
-const Audit  = require('../models/Audit'); // Assurez-vous que le chemin est correct
+const Audit  = require('../models/Audit'); 
 
 describe('Audit API', () => {
   // Données de test pour les utilisateurs
