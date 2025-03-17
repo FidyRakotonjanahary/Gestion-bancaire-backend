@@ -1,5 +1,6 @@
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
-const { isTokenRevoked } = require('../config/jwt');
+const jwtConfig = require('../config/jwt');
 require('dotenv').config();
 
 module.exports = {
@@ -13,28 +14,24 @@ module.exports = {
       });
     }
     
-    try {
-      // Vérifier si le token a été révoqué
-      if (isTokenRevoked(token)) {
-        return res.status(401).json({
-          success: false,
-          message: 'Non autorisé, token révoqué'
-        });
-      }
-      
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = decoded;
+    // Utilisez la fonction depuis l'import
+    const result = jwtConfig.verifyToken(token);
+    
+    if (result.valid) {
+      req.user = result.decoded;
       next();
-    } catch (error) {
+    } else {
       return res.status(401).json({
         success: false,
-        message: 'Non autorisé, token invalide'
+        message: result.reason === 'revoked' 
+          ? 'Non autorisé, token révoqué' 
+          : 'Non autorisé, token invalide'
       });
     }
   },
   
   isAdmin: (req, res, next) => {
-    // D'abord vérifier si l'utilisateur est authentifié
+    // Reste du code inchangé
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -42,7 +39,6 @@ module.exports = {
       });
     }
     
-    // Ensuite vérifier si l'utilisateur a les droits d'admin
     if (req.user.role_id !== 1) {
       return res.status(403).json({
         success: false,

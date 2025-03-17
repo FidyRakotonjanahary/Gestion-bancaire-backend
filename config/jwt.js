@@ -12,6 +12,19 @@ const generateToken = (user) => {
   );
 };
 
+// Fonction de vérification utilitaire que vous pourrez utiliser plus tard si besoin
+const verifyToken = (token) => {
+  try {
+    if (isTokenRevoked(token)) {
+      return { valid: false, reason: 'revoked' };
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return { valid: true, decoded };
+  } catch (error) {
+    return { valid: false, reason: error.message };
+  }
+};
+
 const revokeToken = (token) => {
   revokedTokens.add(token);
 };
@@ -20,13 +33,30 @@ const isTokenRevoked = (token) => {
   return revokedTokens.has(token);
 };
 
+// Ajout d'une fonction pour nettoyer les tokens expirés
+const cleanupExpiredTokens = () => {
+  revokedTokens.forEach(token => {
+    try {
+      jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      // Si le token est expiré, on le retire de la liste
+      if (error.name === 'TokenExpiredError') {
+        revokedTokens.delete(token);
+      }
+    }
+  });
+};
 
 const clearRevokedTokens = () => {
   revokedTokens.clear();
 };
 
+// Nettoyage automatique une fois par jour
+setInterval(cleanupExpiredTokens, 24 * 60 * 60 * 1000);
+
 module.exports = {
   generateToken,
+  verifyToken,
   revokeToken,
   isTokenRevoked,
   clearRevokedTokens
