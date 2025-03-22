@@ -26,7 +26,7 @@ exports.register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
     
     // Utiliser role_id au lieu de role
-    // Valeur par défaut 2 si non spécifié (rôle utilisateur standard)
+    // Valeur amountaut 2 si non spécifié (rôle utilisateur standard)
     const defaultRoleId = role_id || 2;
     
     const result = await db.query(

@@ -99,6 +99,6 @@ module.exports = {
   checkModifyVersement: checkPermission('versement_update'),
   checkDeleteVersement: checkPermission('versement_delete'),
   // Permissions pour consulter les données
-  checkViewClient: checkPermission('client_view'),
-  checkViewVersement: checkPermission('versement_view')
+  checkViewClient: checkPermission('client_read'),
+  checkViewVersement: checkPermission('versement_read')
 };

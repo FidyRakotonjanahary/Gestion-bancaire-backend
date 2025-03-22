@@ -71,6 +71,7 @@ describe('Auth Middleware', () => {
           password: testAdmin.password
         });
       adminToken = adminResponse.body.data.token;
+      console.log('Token administrateur:', adminToken); 
       
       const userResponse = await request(app)
         .post('/api/auth/login')
@@ -79,6 +80,8 @@ describe('Auth Middleware', () => {
           password: testRegularUser.password
         });
       userToken = userResponse.body.data.token;
+      console.log('Token utilisateur standard:', userToken); 
+
     } catch (error) {
       console.error('Erreur dans beforeAll:', error);
       throw error; // Pour que Jest sache qu'il y a eu une erreur
@@ -165,6 +168,7 @@ describe('Auth Middleware', () => {
     
     // Récupérer le nouveau token
     const freshUserToken = loginResponse.body.data.token;
+    console.log('Nouveau token utilisateur:', freshUserToken);
     
     // S'assurer que le token est présent
     expect(freshUserToken).toBeTruthy();

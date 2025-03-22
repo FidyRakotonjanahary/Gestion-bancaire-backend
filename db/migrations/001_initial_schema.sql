@@ -1,3 +1,18 @@
+-- Supprimer d'abord les contraintes existantes
+ALTER TABLE IF EXISTS versements DROP CONSTRAINT IF EXISTS positive_amount;
+ALTER TABLE IF EXISTS clients DROP CONSTRAINT IF EXISTS positive_balance;
+ALTER TABLE IF EXISTS users DROP CONSTRAINT IF EXISTS valid_email;
+ALTER TABLE IF EXISTS users DROP CONSTRAINT IF EXISTS valid_username;
+ALTER TABLE IF EXISTS audit_versement DROP CONSTRAINT IF EXISTS check_entity_type_consistency;
+ALTER TABLE IF EXISTS users DROP CONSTRAINT IF EXISTS strong_password;
+
+-- Supprimer d'abord les triggers s'ils existent
+DROP TRIGGER IF EXISTS update_roles_timestamp ON roles;
+DROP TRIGGER IF EXISTS update_users_timestamp ON users;
+DROP TRIGGER IF EXISTS update_clients_timestamp ON clients;
+DROP TRIGGER IF EXISTS update_versements_timestamp ON versements;
+DROP TRIGGER IF EXISTS update_user_permissions_timestamp ON user_permissions;
+
 -- Tables pour la gestion des utilisateurs
 CREATE TABLE IF NOT EXISTS roles (
   id SERIAL PRIMARY KEY,

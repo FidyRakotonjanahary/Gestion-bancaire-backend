@@ -27,6 +27,16 @@ class Client {
     return result.rows[0] || null;
   }
 
+  static async getCount() {
+    const query = `
+      SELECT COUNT(*) as count
+      FROM clients
+    `;
+    
+    const result = await pool.query(query);
+    return parseInt(result.rows[0].count);
+  }
+
   static async getByAccountNumber(accountNumber) {
     const query = `
       SELECT id, account_number, name, balance, created_at, updated_at
@@ -42,6 +52,18 @@ class Client {
     const query = `
       SELECT id, account_number, name, balance, created_at, updated_at
       FROM clients
+      ORDER BY name ASC
+    `;
+    
+    const result = await pool.query(query);
+    return result.rows;
+  }
+
+  static async getAllWithBalance() {
+    const query = `
+      SELECT id, account_number, name, balance AS solde, created_at, updated_at
+      FROM clients
+      WHERE balance >= 0
       ORDER BY name ASC
     `;
     

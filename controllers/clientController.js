@@ -164,6 +164,23 @@ exports.deleteClient = async (req, res) => {
   }
 };
 
+exports.getClientCount = async (req, res) => {
+  try {
+    const count = await clientService.getClientCount();
+    
+    res.status(200).json({
+      success: true,
+      data: { count }
+    });
+  } catch (error) {
+    logger.error('Erreur lors du comptage des clients:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du comptage des clients'
+    });
+  }
+};
+
 exports.getClientByAccountNumber = async (req, res) => {
   const { account_number } = req.params;
   
@@ -345,6 +362,23 @@ exports.getClientBalance = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la récupération du solde'
+    });
+  }
+};
+
+exports.getClientsWithBalance = async (req, res) => {
+  try {
+    const clients = await clientService.getClientsWithBalance();
+    
+    res.status(200).json({
+      success: true,
+      data: clients
+    });
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des clients avec solde:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des clients avec solde'
     });
   }
 };

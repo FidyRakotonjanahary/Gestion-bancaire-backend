@@ -25,7 +25,7 @@ router.put('/user/:user_id',
   permissionController.updateUserPermissions
 );
 
-// Réinitialiser les permissions d'un utilisateur (revenir aux permissions par défaut du rôle)
+// Réinitialiser les permissions d'un utilisateur (revenir aux permissions amountaut du rôle)
 router.delete('/user/:user_id', 
   authMiddleware.verifyToken, 
   permissionMiddleware.checkRole('ADMIN'),

@@ -1,12 +1,16 @@
+
+
+-- Puis continuez avec le reste de votre script de création
+
 -- Insertion des rôles par défaut
 INSERT INTO roles (name, description, created_at) VALUES 
 ('ADMIN', 'Administrateur avec tous les droits', NOW()),
 ('USER', 'Utilisateur standard avec droits limités', NOW())
 ON CONFLICT (name) DO NOTHING;
 
--- Création d'un utilisateur admin par défaut avec mot de passe hashé 'admin123'
+-- Création d'un utilisateur admin par défaut avec mot de passe hashé 'Admin123'
 INSERT INTO users (username, email, password, full_name, role_id, is_active, created_at) VALUES 
-('admin', 'admin@example.com', '$2a$10$XDCGmvZlMtgUYR5TI5U4/.uF7qRnEmP1ErA8w1a5gQ2aznQGjXKZK', 
+('admin', 'admin@example.com', '$2a$12$r.noe1cF.1q9zdB.Sny7f.iTIFcEbkx7FWcvODvEh/xf1.4Nedaqi', 
  'Admin', (SELECT id FROM roles WHERE name = 'ADMIN'), true, NOW())
 ON CONFLICT (email) DO NOTHING;
 
@@ -31,3 +35,75 @@ VALUES
 ((SELECT id FROM users WHERE email = 'admin@example.com'), 'audit_read', true, NOW()),
 ((SELECT id FROM users WHERE email = 'admin@example.com'), 'user_manage', true, NOW())
 ON CONFLICT (user_id, permission_name) DO NOTHING;
+
+-- Ajout d'un utilisateur standard pour tester les différents niveaux d'accès
+INSERT INTO users (username, email, password, full_name, role_id, is_active, created_at) VALUES 
+('user1', 'user1@example.com', '$2a$12$r.noe1cF.1q9zdB.Sny7f.iTIFcEbkx7FWcvODvEh/xf1.4Nedaqi', 
+ 'Utilisateur Test', (SELECT id FROM roles WHERE name = 'USER'), true, NOW())
+ON CONFLICT (email) DO NOTHING;
+
+-- Ajouter des permissions limitées à l'utilisateur standard
+INSERT INTO user_permissions (user_id, permission_name, is_granted, created_at)
+VALUES 
+((SELECT id FROM users WHERE email = 'user1@example.com'), 'client_read', true, NOW()),
+((SELECT id FROM users WHERE email = 'user1@example.com'), 'versement_read', true, NOW()),
+((SELECT id FROM users WHERE email = 'user1@example.com'), 'versement_create', true, NOW())
+ON CONFLICT (user_id, permission_name) DO NOTHING;
+
+-- Ajouter des historiques de connexion pour les utilisateurs
+INSERT INTO login_history (user_id, ip_address, user_agent, login_time, action_type) VALUES
+((SELECT id FROM users WHERE email = 'admin@example.com'), '192.168.1.100', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', NOW() - INTERVAL '2 days', 'LOGIN'),
+((SELECT id FROM users WHERE email = 'admin@example.com'), '192.168.1.100', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', NOW() - INTERVAL '2 days' + INTERVAL '2 hours', 'LOGOUT'),
+((SELECT id FROM users WHERE email = 'admin@example.com'), '192.168.1.100', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', NOW() - INTERVAL '1 day', 'LOGIN'),
+((SELECT id FROM users WHERE email = 'admin@example.com'), '192.168.1.100', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', NOW() - INTERVAL '1 day' + INTERVAL '3 hours', 'LOGOUT'),
+((SELECT id FROM users WHERE email = 'user1@example.com'), '192.168.1.101', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', NOW() - INTERVAL '1 day', 'LOGIN'),
+((SELECT id FROM users WHERE email = 'user1@example.com'), '192.168.1.101', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', NOW() - INTERVAL '1 day' + INTERVAL '1 hour', 'LOGOUT');
+
+-- Ajouter des versements pour chaque client
+INSERT INTO versements (client_id, numero_cheque, amount, description, created_by, created_at) VALUES
+((SELECT id FROM clients WHERE account_number = 'C001'), 'CHQ001', 1500.00, 'Premier versement', 
+ (SELECT id FROM users WHERE email = 'admin@example.com'), NOW() - INTERVAL '5 days'),
+ 
+((SELECT id FROM clients WHERE account_number = 'C001'), 'CHQ002', 2500.00, 'Deuxième versement', 
+ (SELECT id FROM users WHERE email = 'admin@example.com'), NOW() - INTERVAL '3 days'),
+ 
+((SELECT id FROM clients WHERE account_number = 'C002'), 'CHQ003', 3000.00, 'Versement initial', 
+ (SELECT id FROM users WHERE email = 'admin@example.com'), NOW() - INTERVAL '4 days'),
+ 
+((SELECT id FROM clients WHERE account_number = 'C003'), 'CHQ004', 750.00, 'Petit versement', 
+ (SELECT id FROM users WHERE email = 'user1@example.com'), NOW() - INTERVAL '2 days'),
+ 
+((SELECT id FROM clients WHERE account_number = 'C003'), 'CHQ005', 1250.00, 'Versement complémentaire', 
+ (SELECT id FROM users WHERE email = 'user1@example.com'), NOW() - INTERVAL '1 day');
+
+-- Mettre à jour les soldes des clients en fonction des versements
+UPDATE clients SET 
+balance = (SELECT COALESCE(SUM(amount), 0) FROM versements WHERE client_id = clients.id)
+WHERE account_number IN ('C001', 'C002', 'C003');
+
+-- Ajouter des entrées d'audit pour chaque versement
+INSERT INTO audit_versement (user_id, action, entity_type, entity_id, new_values, client_id, versement_id, old_balance, new_balance, action_type, created_at)
+SELECT 
+  v.created_by,
+  'CREATE',
+  'versement',
+  v.id,
+  json_build_object('amount', v.amount, 'numero_cheque', v.numero_cheque, 'description', v.description),
+  v.client_id,
+  v.id,
+  0,
+  v.amount,
+  'VERSEMENT_CREATE',
+  v.created_at
+FROM versements v;
+
+-- Simuler quelques modifications de permissions pour l'historique
+INSERT INTO permission_history (user_id, permission_name, is_granted, changed_by, changed_at)
+VALUES
+((SELECT id FROM users WHERE email = 'user1@example.com'), 'client_update', false, 
+ (SELECT id FROM users WHERE email = 'admin@example.com'), NOW() - INTERVAL '5 days'),
+((SELECT id FROM users WHERE email = 'user1@example.com'), 'client_update', true, 
+ (SELECT id FROM users WHERE email = 'admin@example.com'), NOW() - INTERVAL '2 days'),
+((SELECT id FROM users WHERE email = 'user1@example.com'), 'versement_update', true, 
+ (SELECT id FROM users WHERE email = 'admin@example.com'), NOW() - INTERVAL '2 days');
+

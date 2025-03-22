@@ -11,6 +11,16 @@ router.get('/',
   clientController.getAllClients
 );
 
+router.get('/count',
+  authMiddleware.verifyToken,
+  clientController.getClientCount  // Vous devrez créer cette fonction
+);
+
+router.get('/with-balance',
+  authMiddleware.verifyToken,
+  clientController.getClientsWithBalance
+);
+
 router.get('/:id', 
   authMiddleware.verifyToken, 
   clientController.getClientById

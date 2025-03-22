@@ -13,6 +13,23 @@ const getAllClients = async () => {
   }
 };
 
+const getClientsWithBalance = async () => {
+  try {
+    return await Client.getAllWithBalance();
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des clients avec solde:', error);
+    throw error;
+  }
+};
+
+const getClientCount = async () => {
+  try {
+    return await Client.getCount();
+  } catch (error) {
+    throw error;
+  }
+};
+
 /**
  * Récupère un client par son ID
  */
@@ -129,6 +146,8 @@ const getAuditTrail = async (id) => {
 
 module.exports = {
   getAllClients,
+  getClientsWithBalance,
+  getClientCount,
   getClientById,
   getClientByAccountNumber,
   createClient,
