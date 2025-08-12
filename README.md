@@ -78,7 +78,7 @@ Ce projet est une API RESTful pour une application de gestion de versements banc
 
 Exécuter les tests : `npm test`
 
-## Socket.IO Events
 
-- `audit:update` - Émis quand une opération d'audit est enregistrée
-- `counters:update` - Émis quand les compteurs d'opérations sont mis à jour
+## Login
+Nom : admin
+Mot de passe : Admin123
